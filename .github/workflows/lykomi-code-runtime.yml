@@ -56,6 +56,7 @@ jobs:
           test "$(cat "$workspace/server/source-commit")" = "$SOURCE_COMMIT"
           (cd "$workspace/server" && sha256sum --check SHA256SUMS)
       - name: Verify runtime linkage and exercise native sandbox
+        id: runtime
         env:
           PLATFORM: linux/${{ matrix.arch }}
           ARCH: ${{ matrix.arch }}
@@ -79,7 +80,8 @@ jobs:
           bash lykomi/smoke.sh lykomi-code:runtime docker/cool-seccomp-profile.json
           bash lykomi/server-conversion.sh lykomi-code:runtime docker/cool-seccomp-profile.json \
             "$workspace/evidence/document-smoke"
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - if: always() && steps.runtime.outcome != 'skipped'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: code-native-runtime-evidence-${{ matrix.arch }}-${{ env.SOURCE_COMMIT }}
           path: ${{ runner.temp }}/code-runtime/evidence

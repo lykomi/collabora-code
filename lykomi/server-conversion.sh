@@ -31,7 +31,7 @@ PY
 container=$(docker run -d --cap-drop=ALL --security-opt "seccomp=$seccomp" \
     --publish 127.0.0.1::9980 -e DONT_GEN_SSL_CERT=true "$image" \
     --o:ssl.enable=false --o:ssl.termination=false --o:security.capabilities=true \
-    --o:security.enable_macros_execution=false)
+    --o:security.enable_macros_execution=false --o:logging.level=trace)
 port=$(docker port "$container" 9980/tcp | awk -F: '{print $NF}')
 for _ in {1..35}; do
     if curl -fsS --max-time 2 "http://127.0.0.1:$port/hosting/discovery" \
@@ -59,4 +59,9 @@ pdftotext "$evidence/test.pdf" "$evidence/test.txt"
 grep -Fx 'LYKOMI CODE sandbox conversion evidence' "$evidence/test.txt"
 docker logs "$container" > "$evidence/server.log" 2>&1
 grep -q 'Install seccomp filter successfully' "$evidence/server.log"
-grep -q 'adms_contained=ok_namespaces' "$evidence/server.log"
+mode=$(grep -Eo 'adms_contained=ok_(namespaces|landlock)' "$evidence/server.log" | sort -u || true)
+if [[ -z $mode ]]; then
+    tail -45 "$evidence/server.log" >&2
+    exit 1
+fi
+printf '%s\n' "$mode" | tee "$evidence/sandbox-mode"
