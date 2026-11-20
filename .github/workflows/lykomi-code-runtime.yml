@@ -2,7 +2,7 @@ name: LYKOMI CODE native runtime validation
 
 on:
   push:
-    branches: ['codex/code-runtime-validation']
+    branches: ['codex/code-runtime-vendor-abi']
     paths:
       - '.github/workflows/lykomi-code-runtime.yml'
       - 'lykomi/Dockerfile.server'
@@ -13,8 +13,8 @@ permissions:
   contents: read
 
 env:
-  SOURCE_RUN: '44731098912'
-  SOURCE_COMMIT: d65e4abd2c69f68bd46540b2d4546d8b36048a74
+  SOURCE_RUN: '44743028283'
+  SOURCE_COMMIT: 3347785203f791331964d95fc96952a3746fe7b3
 
 jobs:
   native-runtime:
