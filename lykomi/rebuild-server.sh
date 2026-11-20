@@ -5,6 +5,12 @@ set -euo pipefail
 
 output=${1:?Expected an absolute output directory}
 : "${EXPECTED_ARCH:?Expected the target architecture}"
+: "${EXPECTED_STRING_ABI:?Expected the vendor libstdc++ string ABI}"
+case "$EXPECTED_STRING_ABI" in
+    0) kit_symbol='_Z10lokit_mainRKSs' ;;
+    1) kit_symbol='_Z10lokit_mainRKNSt7__cxx11' ;;
+    *) echo "Unsupported string ABI: $EXPECTED_STRING_ABI" >&2; exit 1 ;;
+esac
 if [[ $output != /* ]]; then
     echo "The output directory must be absolute" >&2
     exit 1
@@ -28,6 +34,11 @@ for program in coolwsd coolforkit-caps coolforkit-ns; do
     strip --strip-unneeded "$output/$program"
     readelf --file-header "$output/$program" > "$output/$program.elf"
     readelf --dynamic --version-info "$output/$program" >> "$output/$program.elf"
+    if [[ $program == coolforkit-* ]]; then
+        objdump --dynamic-syms "$output/$program" > "$output/$program.symbols"
+        grep -F "$kit_symbol" "$output/$program.symbols" >> "$output/$program.elf"
+        rm "$output/$program.symbols"
+    fi
     strings "$output/$program" > "$output/$program.strings"
     grep -F "$machine" "$output/$program.elf"
     grep -F 'OpenSSL 3.5.10-dev' "$output/$program.strings" | sort -u
@@ -49,6 +60,7 @@ git rev-parse HEAD > "$output/source-commit"
     (cd engine && ./config.status --config)
     printf '\nConfigured toolchain and external linkage:\n'
     grep -E '^export (CC|CXX|LINK|COM|CXXFLAGS|SYSTEM_(EXPAT|LIBPNG|OPENSSL|ZLIB|ZSTD))=' engine/config_host.mk
+    printf 'Vendor libstdc++ string ABI: %s\n' "$EXPECTED_STRING_ABI"
     printf '\nBuild tool package versions:\n'
     "${CC:-gcc}" --version | sed -n '1p'
     "${CXX:-g++}" --version | sed -n '1p'

@@ -2,7 +2,7 @@ name: LYKOMI CODE source rebuild
 
 on:
   push:
-    branches: ['codex/code-online-openssl']
+    branches: ['codex/code-vendor-abi']
 
 permissions:
   contents: read
@@ -16,12 +16,16 @@ jobs:
     env:
       CC: gcc-${{ matrix.compiler }}
       CXX: g++-${{ matrix.compiler }}
+      # The pinned vendor AMD64 engine uses the legacy libstdc++ string ABI.
+      # The matching ARM64 engine uses the current ABI.
+      CXXFLAGS: -D_GLIBCXX_USE_CXX11_ABI=${{ matrix.string_abi }}
+      EXPECTED_STRING_ABI: ${{ matrix.string_abi }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { arch: amd64, runner: ubuntu-24.04, compiler: 12 }
-          - { arch: arm64, runner: ubuntu-24.04-arm, compiler: 13 }
+          - { arch: amd64, runner: ubuntu-24.04, compiler: 12, string_abi: 0 }
+          - { arch: arm64, runner: ubuntu-24.04-arm, compiler: 13, string_abi: 1 }
     steps:
       - name: Free build space on the hosted runner
         run: |
