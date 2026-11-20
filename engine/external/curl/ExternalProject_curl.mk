@@ -40,7 +40,7 @@ $(call gb_ExternalProject_get_state_target,curl,build):
 	$(call gb_ExternalProject_run,build,\
 		$(gb_RUN_CONFIGURE) ./configure \
 			--disable-ftp --enable-http --enable-ipv6 \
-			--without-libidn2 --without-libpsl --without-librtmp \
+			--without-libidn2 --without-libpsl \
 			--without-libssh2 --without-nghttp2 \
 			--without-libssh --without-brotli \
 			--without-ngtcp2 --without-quiche \
@@ -49,7 +49,7 @@ $(call gb_ExternalProject_get_state_target,curl,build):
 			--disable-ipfs --disable-mqtt --disable-ares \
 			--disable-dict --disable-file --disable-gopher --disable-imap \
 			--disable-ldap --disable-ldaps --disable-manual --disable-pop3 \
-			--disable-rtsp --disable-smb --disable-smtp --disable-telnet  \
+			--disable-rtsp --disable-smtp --disable-telnet  \
 			--disable-tftp  \
 			$(if $(ENABLE_OPENSSL),--with-openssl$(if $(SYSTEM_OPENSSL),,="$(gb_UnpackedTarball_workdir)/openssl")) \
 			$(if $(filter iOS MACOSX,$(OS)),--with-apple-sectrust) \
@@ -106,7 +106,6 @@ $(call gb_ExternalProject_get_state_target,curl,build):
 			-DCURL_DISABLE_MQTT=ON \
 			-DCURL_DISABLE_POP3=ON \
 			-DCURL_DISABLE_RTSP=ON \
-			-DCURL_DISABLE_SMB=ON \
 			-DCURL_DISABLE_SMTP=ON \
 			-DCURL_DISABLE_TELNET=ON \
 			-DCURL_DISABLE_TFTP=ON \
