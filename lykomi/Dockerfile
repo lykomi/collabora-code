@@ -53,8 +53,32 @@ RUN --network=none sh /tmp/verify-library.sh /vendor/libcurl.so.4 /output/libcur
 FROM scratch AS library
 COPY --from=compile /output/ /
 
+# The pinned runtime's /usr/lib zlib symlinks resolve into the distroless Nix tree.
+# Replace the backing file with the signed Debian security build without changing the links.
+FROM --platform=$BUILDPLATFORM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS runtime-libraries
+ARG TARGETARCH
+ADD --checksum=sha256:8c27c342230503b73dfde629642c3b352e87b554e06d60cf58772f236a305ceb \
+    https://deb.debian.org/debian-security/pool/updates/main/z/zlib/zlib1g_1.3.dfsg+really1.3.1-1+deb13u1_amd64.deb /tmp/zlib-amd64.deb
+ADD --checksum=sha256:0e41b3d7ad8ad7fcd36dd4d61ca91a70018478fc4af652e044f4be770784ddff \
+    https://deb.debian.org/debian-security/pool/updates/main/z/zlib/zlib1g_1.3.dfsg+really1.3.1-1+deb13u1_arm64.deb /tmp/zlib-arm64.deb
+RUN --network=none set -eu; \
+    case "$TARGETARCH" in \
+      amd64) multiarch=x86_64-linux-gnu; store=cjsd30364cm2x8b2743f5mvrnayrkhl2-image-root ;; \
+      arm64) multiarch=aarch64-linux-gnu; store=4mb0w5k2sbqvmpwwnnaa4bdvhi1cfrah-image-root ;; \
+      *) exit 1 ;; \
+    esac; \
+    deb="/tmp/zlib-$TARGETARCH.deb"; \
+    test "$(dpkg-deb -f "$deb" Architecture)" = "$TARGETARCH"; \
+    test "$(dpkg-deb -f "$deb" Version)" = '1:1.3.dfsg+really1.3.1-1+deb13u1'; \
+    dpkg-deb -x "$deb" /deb; \
+    install -D -m 444 "/deb/usr/lib/$multiarch/libz.so.1.3.1" \
+        "/rootfs/nix/store/$store/usr/lib/$multiarch/libz.so.1.3.1"; \
+    install -D -m 444 /deb/usr/share/doc/zlib1g/copyright \
+        /rootfs/usr/share/doc/lykomi-code-repair/zlib.copyright
+
 # This candidate still needs a whole-image scan and a WOPI runtime test before promotion.
 FROM code AS candidate
+COPY --from=runtime-libraries /rootfs/ /
 COPY --from=compile /output/libcurl.so.4 /opt/collaboraoffice/program/libcurl.so.4
 COPY --from=compile /output/curl.COPYING /usr/share/doc/lykomi-code-repair/curl.COPYING
 COPY --from=compile /output/openssl.LICENSE.txt /usr/share/doc/lykomi-code-repair/openssl.LICENSE.txt

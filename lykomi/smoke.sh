@@ -13,6 +13,19 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Check the real file reached by the distroless root's libz symlink.
+arch=$(docker image inspect --format '{{.Architecture}}' "$image")
+case "$arch" in
+    amd64) multiarch=x86_64-linux-gnu; zlib_sha=6c13931760210e8b391b63a337dfe4071346c4ad6e3827694edb7b6989bb16dd ;;
+    arm64) multiarch=aarch64-linux-gnu; zlib_sha=ac4b7f163145ca73ddba8e657cc35c5b5380ce01f75cbf3b65f8deeebd9c1e72 ;;
+    *) exit 1 ;;
+esac
+container=$(docker create --platform "linux/$arch" "$image")
+docker cp -L "$container:/usr/lib/$multiarch/libz.so.1.3.1" "$workspace/libz.so"
+printf '%s  %s\n' "$zlib_sha" "$workspace/libz.so" | sha256sum --check
+docker rm "$container" >/dev/null
+container=''
+
 # The image runs as uid 1001, so give it access to this disposable directory.
 chmod 777 "$workspace"
 printf '%s\n' 'LYKOMI CODE document smoke test' > "$workspace/fixture.txt"
