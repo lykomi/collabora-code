@@ -11,12 +11,12 @@ fetch_LOGFILE := $(TARFILE_LOCATION)/fetch.log
 
 ifneq (,$(WGET))
 define fetch_Download__wget_command
-&& bash -c '$(WGET) --progress=dot:mega -Q 0 -P "." -l 0 -nd -nH -N --no-use-server-timestamps $1/$2 2>&1 | tee -a $(fetch_LOGFILE) && [ $$PIPESTATUS -eq 0 ]'
+&& bash -c '$(WGET) --progress=dot:mega -Q 0 -P "." -l 0 -nd -nH $(if $3,-O $2 $3,-N --no-use-server-timestamps $1/$2) 2>&1 | tee -a $(fetch_LOGFILE) && [ $$PIPESTATUS -eq 0 ]'
 endef
 
 else
 define fetch_Download__wget_command
-&& echo fetching $2 && bash -c '$(CURL) -f -L -O $1/$2 2>&1 | tee -a $(fetch_LOGFILE) && [ $$PIPESTATUS -eq 0 ]'
+&& echo fetching $2 && bash -c '$(CURL) -f -L $(if $3,-o $2 $3,-O $1/$2) 2>&1 | tee -a $(fetch_LOGFILE) && [ $$PIPESTATUS -eq 0 ]'
 endef
 
 endif
@@ -35,11 +35,11 @@ fetch_Download__checksum_command :=
 
 endif
 
-# fetch__Download_item url tarball-name sha256sum
+# fetch__Download_item url tarball-name sha256sum [exact-url]
 define fetch__Download_item
 $(if $(wildcard $(TARFILE_LOCATION)/$2),, \
 cd $(TARFILE_LOCATION)/tmp \
-$(call fetch_Download__wget_command,$1,$2) \
+$(call fetch_Download__wget_command,$1,$2,$4) \
 $(if $3,$(call fetch_Download__checksum_command,$2,$3)) \
 && mv $2 ../ \
 )
@@ -55,12 +55,12 @@ define fetch_Download__subst_var
 $(subst _TTF,_SHA256SUM,$(subst _DLL,_SHA256SUM,$(subst _TARBALL,_SHA256SUM,$(subst _PACK,_SHA256SUM,$(subst _JAR,_SHA256SUM,$(1))))))
 endef
 
-# fetch_Download_item url variable-name
+# fetch_Download_item url variable-name [exact-url]
 define fetch_Download_item
 $(if $(strip $($(2))),,$(error fetch__Download_item: $(2) is empty))
 $(if $(filter undefined,$(origin $(call fetch_Download__subst_var,$(2)))),\
 	$(error "fetch_Download_item: no checksum found for $($(2)). Please define $(call fetch_Download__subst_var,$(2)) in download.lst."),\
-	$(call fetch__Download_item,$(1),$($2),$($(call fetch_Download__subst_var,$(2)))) \
+	$(call fetch__Download_item,$(1),$($2),$($(call fetch_Download__subst_var,$(2))),$3) \
 )
 
 endef
@@ -246,8 +246,9 @@ download: $(WORKDIR)/download
 $(WORKDIR)/download: $(BUILDDIR)/config_$(gb_Side).mk $(SRCDIR)/download.lst $(SRCDIR)/Makefile.fetch
 	-@mkdir -p $(TARFILE_LOCATION)/tmp
 	@date >> $(fetch_LOGFILE)
-	$(foreach item,$(filter-out CURL_TARBALL,$(fetch_SRC_TARBALLS)),$(call fetch_Download_item,https://gerrit.collaboraoffice.com/src,$(item)))
+	$(foreach item,$(filter-out CURL_TARBALL OPENSSL_TARBALL,$(fetch_SRC_TARBALLS)),$(call fetch_Download_item,https://gerrit.collaboraoffice.com/src,$(item)))
 	$(foreach item,$(filter CURL_TARBALL,$(fetch_SRC_TARBALLS)),$(call fetch_Download_item,https://curl.se/download,$(item)))
+	$(foreach item,$(filter OPENSSL_TARBALL,$(fetch_SRC_TARBALLS)),$(call fetch_Download_item,https://gerrit.collaboraoffice.com/src,$(item),$(OPENSSL_TARBALL_URL)))
 	$(foreach item,$(fetch_EXTERN_TARBALLS),$(call fetch_Download_item,https://gerrit.collaboraoffice.com/extern,$(item)))
 	-@mkdir -p $(TARFILE_LOCATION)/cargo
 	$(if $(call fetch_Optional,YRS,1),\
