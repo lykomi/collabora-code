@@ -13,8 +13,8 @@ permissions:
   contents: read
 
 env:
-  SOURCE_RUN: '44734484378'
-  SOURCE_COMMIT: dab971d3ab5c3494c875948b581c285a124cc1c0
+  SOURCE_RUN: '44739430407'
+  SOURCE_COMMIT: 13f48de18fdf8eec55bb7fe4b705a965cd69b8df
 
 jobs:
   native-runtime:
@@ -40,7 +40,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends poppler-utils
           docker buildx build --platform "$PLATFORM" --target candidate \
             --load --tag lykomi-code:validation-base lykomi
-      - name: Download and verify the arch-specific server build
+      - name: Download and verify the matched engine and server build
         env:
           GH_TOKEN: ${{ github.token }}
           ARCH: ${{ matrix.arch }}
@@ -49,10 +49,15 @@ jobs:
           head=$(gh run view "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)
           test "$head" = "$SOURCE_COMMIT"
           workspace="$RUNNER_TEMP/code-runtime"
-          mkdir -p "$workspace/server"
+          mkdir -p "$workspace/server" "$workspace/engine"
           gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" \
             --name "code-server-$ARCH-$SOURCE_COMMIT" --dir "$workspace"
+          (cd "$workspace" && sha256sum --check CODE-SHA256SUMS)
           tar -xf "$workspace/code-server.tar" -C "$workspace/server"
+          tar -xzf "$workspace/code-engine.tar.gz" -C "$workspace/engine"
+          test -s "$workspace/engine/program/libmergedlo.so"
+          test ! -e "$workspace/engine/program/libcurl.so.4"
+          printf '%s\n' '*' '!server/' '!server/**' '!engine/' '!engine/**' > "$workspace/.dockerignore"
           test "$(cat "$workspace/server/source-commit")" = "$SOURCE_COMMIT"
           (cd "$workspace/server" && sha256sum --check SHA256SUMS)
       - name: Verify runtime linkage and exercise native sandbox
@@ -77,6 +82,8 @@ jobs:
           done
           docker image inspect lykomi-code:runtime > "$workspace/evidence/image-inspect.json"
           cp "$workspace/server/SHA256SUMS" "$workspace/evidence/SHA256SUMS"
+          cp "$workspace/CODE-SHA256SUMS" "$workspace/evidence/CODE-SHA256SUMS"
+          sha256sum "$workspace/engine/program/libmergedlo.so" > "$workspace/evidence/engine-library.sha256"
           bash lykomi/server-conversion.sh lykomi-code:runtime docker/cool-seccomp-profile.json \
             "$workspace/evidence/document-smoke"
       - name: Compare the pinned upstream runtime on sandbox failures

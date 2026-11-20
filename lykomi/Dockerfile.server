@@ -15,4 +15,5 @@ RUN --network=none set -eu; \
     install -D -m 644 SHA256SUMS /layer/usr/share/doc/lykomi-code-repair/server-SHA256SUMS
 
 FROM ${REPAIRED_RUNTIME}
+COPY --chown=root:root engine/ /opt/collaboraoffice/
 COPY --from=server /layer/ /
