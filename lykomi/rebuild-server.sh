@@ -50,7 +50,9 @@ git rev-parse HEAD > "$output/source-commit"
     printf '\nConfigured toolchain and external linkage:\n'
     grep -E '^export (CC|CXX|LINK|COM|CXXFLAGS|SYSTEM_(EXPAT|LIBPNG|OPENSSL|ZLIB|ZSTD))=' engine/config_host.mk
     printf '\nBuild tool package versions:\n'
-    dpkg-query -W gcc g++ binutils make libc6-dev
+    "${CC:-gcc}" --version | sed -n '1p'
+    "${CXX:-g++}" --version | sed -n '1p'
+    dpkg-query -W "${CC:-gcc}" "${CXX:-g++}" binutils make libc6-dev
     printf '\nPinned OpenSSL material:\n'
     grep -E '^OPENSSL_(TARBALL|TARBALL_URL|SHA256SUM)[[:space:]]*[:?]?=' engine/download.lst
     sha256sum engine/workdir/UnpackedTarball/openssl/libssl.a engine/workdir/UnpackedTarball/openssl/libcrypto.a
