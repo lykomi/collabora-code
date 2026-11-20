@@ -7,6 +7,7 @@ on:
       - '.github/workflows/lykomi-code-runtime.yml'
       - 'lykomi/Dockerfile.server'
       - 'lykomi/server-conversion.sh'
+      - 'lykomi/fingerprint-runtime.py'
 
 permissions:
   actions: read
@@ -79,6 +80,30 @@ jobs:
           cp "$workspace/server/SHA256SUMS" "$workspace/evidence/SHA256SUMS"
           bash lykomi/server-conversion.sh lykomi-code:runtime docker/cool-seccomp-profile.json \
             "$workspace/evidence/document-smoke"
+          container=$(docker create lykomi-code:runtime)
+          trap 'docker rm "$container" >/dev/null' EXIT
+          docker export "$container" | python3 lykomi/fingerprint-runtime.py \
+            > "$workspace/evidence/runtime-rootfs.json"
+          docker cp -L "$container:/opt/collaboraoffice/program/libcurl.so.4" \
+            "$workspace/evidence/native-libcurl.so.4"
+          docker image save --output "$workspace/runtime.tar" lykomi-code:runtime
+          python3 - "$workspace/runtime.tar" <<'PY' > "$workspace/evidence/runtime-file-capabilities.json"
+          import json
+          import sys
+          import tarfile
+
+          with tarfile.open(sys.argv[1]) as image:
+              layers = json.load(image.extractfile("manifest.json"))[0]["Layers"]
+              capabilities = {}
+              for name in layers:
+                  with tarfile.open(fileobj=image.extractfile(name)) as layer:
+                      for member in layer:
+                          capability = member.pax_headers.get("SCHILY.xattr.security.capability")
+                          if capability:
+                              path = member.name.removeprefix("./").lstrip("/")
+                              capabilities[path] = capability.encode("utf-8", "surrogateescape").hex()
+          print(json.dumps(capabilities, sort_keys=True))
+          PY
       - name: Compare the pinned upstream runtime on sandbox failures
         if: failure() && steps.runtime.outcome == 'failure'
         run: |
