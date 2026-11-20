@@ -59,7 +59,8 @@ git rev-parse HEAD > "$output/source-commit"
     printf '\nEngine configure arguments:\n'
     (cd engine && ./config.status --config)
     printf '\nConfigured toolchain and external linkage:\n'
-    grep -E '^export (CC|CXX|LINK|COM|CXXFLAGS|SYSTEM_(EXPAT|LIBPNG|OPENSSL|ZLIB|ZSTD))=' engine/config_host.mk
+    grep -E '^export (CC|CXX|LINK|COM|CPPFLAGS|CXXFLAGS|SYSTEM_(EXPAT|LIBPNG|OPENSSL|ZLIB|ZSTD))=' engine/config_host.mk
+    printf 'Preprocessor flags: %s\n' "${CPPFLAGS:-}"
     printf 'Vendor libstdc++ string ABI: %s\n' "$EXPECTED_STRING_ABI"
     printf '\nBuild tool package versions:\n'
     "${CC:-gcc}" --version | sed -n '1p'
