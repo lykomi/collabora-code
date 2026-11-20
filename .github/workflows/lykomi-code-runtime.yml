@@ -77,9 +77,14 @@ jobs:
           done
           docker image inspect lykomi-code:runtime > "$workspace/evidence/image-inspect.json"
           cp "$workspace/server/SHA256SUMS" "$workspace/evidence/SHA256SUMS"
-          bash lykomi/smoke.sh lykomi-code:runtime docker/cool-seccomp-profile.json
           bash lykomi/server-conversion.sh lykomi-code:runtime docker/cool-seccomp-profile.json \
             "$workspace/evidence/document-smoke"
+      - name: Compare the pinned upstream runtime on sandbox failures
+        if: failure() && steps.runtime.outcome == 'failure'
+        run: |
+          workspace="$RUNNER_TEMP/code-runtime"
+          bash lykomi/server-conversion.sh lykomi-code:validation-base docker/cool-seccomp-profile.json \
+            "$workspace/evidence/upstream-control"
       - if: always() && steps.runtime.outcome != 'skipped'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:

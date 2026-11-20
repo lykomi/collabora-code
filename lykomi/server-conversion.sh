@@ -6,9 +6,14 @@ evidence=${3:?Expected evidence directory}
 mkdir -p "$evidence"
 container=''
 cleanup() {
+    local status=$?
     if [[ -n $container ]]; then
         docker logs "$container" > "$evidence/server.log" 2>&1
         docker rm -f "$container" >/dev/null
+        if (( status != 0 )); then
+            grep -Ei 'seccomp|landlock|namespace|failed|segfault|\bFTL\b' "$evidence/server.log" \
+                | tail -45 >&2 || true
+        fi
     fi
 }
 trap cleanup EXIT
