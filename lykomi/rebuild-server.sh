@@ -24,7 +24,7 @@ make -j "$(nproc)" coolwsd coolforkit-caps coolforkit-ns
 
 mkdir -p "$output"
 for program in coolwsd coolforkit-caps coolforkit-ns; do
-    install -m 755 "engine/workdir/LinkTarget/Executable/$program" "$output/$program"
+    install -m 755 "./$program" "$output/$program"
     strip --strip-unneeded "$output/$program"
     readelf --file-header "$output/$program" > "$output/$program.elf"
     readelf --dynamic "$output/$program" >> "$output/$program.elf"
