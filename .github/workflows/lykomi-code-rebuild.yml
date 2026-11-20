@@ -2,7 +2,7 @@ name: LYKOMI CODE source rebuild
 
 on:
   push:
-    branches: ['codex/code-online-openssl']
+    branches: ['codex/code-version-log']
 
 permissions:
   contents: read

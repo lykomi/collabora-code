@@ -4857,8 +4857,6 @@ void lokit_main(
 
             SigUtil::setVersionInfo(versionString);
 
-            LOG_INF("Kit core version is " << versionString);
-
             Poco::JSON::Object::Ptr versionJSON =
                 Poco::JSON::Parser().parse(versionString).extract<Poco::JSON::Object::Ptr>();
 
@@ -4887,6 +4885,7 @@ void lokit_main(
 
             const std::string coreFullVersion =
                 coreVersion + versionJSON->optValue<std::string>("ProductExtension", std::string());
+            LOG_INF("Kit core version is " << coreFullVersion);
             if (coreFullVersion != Util::getCoolVersion())
             {
                 LOG_WRN("The office library is ["
