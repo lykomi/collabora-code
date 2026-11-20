@@ -27,7 +27,7 @@ for program in coolwsd coolforkit-caps coolforkit-ns; do
     install -m 755 "./$program" "$output/$program"
     strip --strip-unneeded "$output/$program"
     readelf --file-header "$output/$program" > "$output/$program.elf"
-    readelf --dynamic "$output/$program" >> "$output/$program.elf"
+    readelf --dynamic --version-info "$output/$program" >> "$output/$program.elf"
     strings "$output/$program" > "$output/$program.strings"
     grep -F "$machine" "$output/$program.elf"
     grep -F 'OpenSSL 3.5.10-dev' "$output/$program.strings" | sort -u
@@ -40,8 +40,25 @@ for program in coolwsd coolforkit-caps coolforkit-ns; do
 done
 
 git rev-parse HEAD > "$output/source-commit"
+{
+    printf 'Workflow run: %s / attempt %s\n' "${GITHUB_RUN_ID:-local}" "${GITHUB_RUN_ATTEMPT:-local}"
+    printf 'Runner image: %s %s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}"
+    printf '\nOnline configure arguments:\n'
+    ./config.status --config
+    printf '\nEngine configure arguments:\n'
+    (cd engine && ./config.status --config)
+    printf '\nConfigured toolchain and external linkage:\n'
+    grep -E '^export (CC|CXX|LINK|COM|CXXFLAGS|SYSTEM_(EXPAT|LIBPNG|OPENSSL|ZLIB|ZSTD))=' engine/config_host.mk
+    printf '\nBuild tool package versions:\n'
+    dpkg-query -W gcc g++ binutils make libc6-dev
+    printf '\nPinned OpenSSL material:\n'
+    grep -E '^OPENSSL_(TARBALL|TARBALL_URL|SHA256SUM)[[:space:]]*[:?]?=' engine/download.lst
+    sha256sum engine/workdir/UnpackedTarball/openssl/libssl.a engine/workdir/UnpackedTarball/openssl/libcrypto.a
+} > "$output/build-environment.txt"
 (
     cd "$output"
-    sha256sum coolwsd coolforkit-caps coolforkit-ns *.elf source-commit > SHA256SUMS
-    tar -cf "$output.tar" coolwsd coolforkit-caps coolforkit-ns *.elf source-commit SHA256SUMS
+    files=(coolwsd coolforkit-caps coolforkit-ns coolwsd.elf coolforkit-caps.elf
+        coolforkit-ns.elf source-commit build-environment.txt)
+    sha256sum "${files[@]}" > SHA256SUMS
+    tar -cf "$output.tar" "${files[@]}" SHA256SUMS
 )

@@ -3,18 +3,9 @@ name: LYKOMI CODE source rebuild
 on:
   push:
     branches: ['codex/code-online-openssl']
-    paths:
-      - '.github/workflows/lykomi-code-rebuild.yml'
-      - 'engine/download.lst'
-      - 'engine/Makefile.fetch'
-      - 'lykomi/**'
 
 permissions:
   contents: read
-
-concurrency:
-  group: lykomi-code-source-rebuild-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   rebuild:
@@ -47,24 +38,27 @@ jobs:
             autoconf automake binutils build-essential flex gperf libcap-dev libcap2-bin \
             libcppunit-dev libgif-dev libpam-dev libpng-dev libssl-dev libtool \
             libzstd-dev meson nasm ninja-build pkg-config python3-lxml python3-polib
-      - name: Configure Collabora Office and build the pinned server dependencies
+      - name: Configure the Collabora Office build
         working-directory: engine
         run: |
           ./autogen.sh --with-distro=CPLinux-LOKit --disable-epm --without-package-format \
             --disable-symbols --disable-ccache --without-java --without-fonts --with-lang=en-US \
             --with-parallelism="$(nproc)"
-          make bootstrap fetch
-          make -f Makefile.gbuild -j "$(nproc)" \
-            Module_poco Module_openssl Module_expat Module_libpng Module_zstd
-          df -h "$RUNNER_TEMP"
       - name: Link and verify CODE executables
         env:
           EXPECTED_ARCH: ${{ matrix.arch }}
         run: |
-          if bash lykomi/rebuild-server.sh "$RUNNER_TEMP/code-server"; then
+          if make -C engine bootstrap \
+            && make -C engine download fetch_EXTERN_TARBALLS= \
+              fetch_SRC_TARBALLS='POCO_TARBALL OPENSSL_TARBALL EXPAT_TARBALL LIBPNG_TARBALL ZSTD_TARBALL' \
+            && make -C engine -f Makefile.gbuild -j "$(nproc)" \
+              Module_poco Module_openssl Module_expat Module_libpng Module_zstd \
+            && bash lykomi/rebuild-server.sh "$RUNNER_TEMP/code-server"; then
             exit 0
           fi
           echo "Server-only build failed. Building the complete engine as documented upstream."
+          # The targeted fetch records the normal download stamp. Clear it before full fetch.
+          rm -f engine/workdir/download
           make -C engine
           bash lykomi/rebuild-server.sh "$RUNNER_TEMP/code-server"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
