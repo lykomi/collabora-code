@@ -246,7 +246,8 @@ download: $(WORKDIR)/download
 $(WORKDIR)/download: $(BUILDDIR)/config_$(gb_Side).mk $(SRCDIR)/download.lst $(SRCDIR)/Makefile.fetch
 	-@mkdir -p $(TARFILE_LOCATION)/tmp
 	@date >> $(fetch_LOGFILE)
-	$(foreach item,$(fetch_SRC_TARBALLS),$(call fetch_Download_item,https://gerrit.collaboraoffice.com/src,$(item)))
+	$(foreach item,$(filter-out CURL_TARBALL,$(fetch_SRC_TARBALLS)),$(call fetch_Download_item,https://gerrit.collaboraoffice.com/src,$(item)))
+	$(foreach item,$(filter CURL_TARBALL,$(fetch_SRC_TARBALLS)),$(call fetch_Download_item,https://curl.se/download,$(item)))
 	$(foreach item,$(fetch_EXTERN_TARBALLS),$(call fetch_Download_item,https://gerrit.collaboraoffice.com/extern,$(item)))
 	-@mkdir -p $(TARFILE_LOCATION)/cargo
 	$(if $(call fetch_Optional,YRS,1),\
