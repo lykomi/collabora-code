@@ -1,4 +1,4 @@
-name: LYKOMI CODE source rebuild
+name: LYKOMI CODE matched engine and server build
 
 on:
   push:
@@ -41,32 +41,31 @@ jobs:
             autoconf automake binutils build-essential "$CC" "$CXX" flex gperf libcap-dev libcap2-bin \
             libcppunit-dev libgif-dev libpam-dev libpng-dev libssl-dev libtool \
             libzstd-dev meson nasm ninja-build pkg-config python3-lxml python3-polib
-      - name: Configure the Collabora Office build
+      - name: Build the Collabora Office engine with the server toolchain
         working-directory: engine
         run: |
           ./autogen.sh --with-distro=CPLinux-LOKit --disable-epm --without-package-format \
             --disable-symbols --disable-ccache --without-java --without-fonts --with-lang=en-US \
             --with-parallelism="$(nproc)"
+          make
+          df -h "$RUNNER_TEMP"
       - name: Link and verify CODE executables
         env:
           EXPECTED_ARCH: ${{ matrix.arch }}
         run: |
-          if make -C engine bootstrap \
-            && make -C engine download fetch_EXTERN_TARBALLS= \
-              fetch_SRC_TARBALLS='POCO_TARBALL OPENSSL_TARBALL EXPAT_TARBALL LIBPNG_TARBALL ZSTD_TARBALL' \
-            && make -C engine -f Makefile.gbuild -j "$(nproc)" \
-              Module_poco Module_openssl Module_expat Module_libpng Module_zstd \
-            && bash lykomi/rebuild-server.sh "$RUNNER_TEMP/code-server"; then
-            exit 0
-          fi
-          echo "Server-only build failed. Building the complete engine as documented upstream."
-          # The targeted fetch records the normal download stamp. Clear it before full fetch.
-          rm -f engine/workdir/download
-          make -C engine
           bash lykomi/rebuild-server.sh "$RUNNER_TEMP/code-server"
+          test -s engine/instdir/program/libmergedlo.so
+          test -s engine/instdir/program/versionrc
+          # The repaired runtime supplies the separate curl build and vendor fonts.
+          tar -C engine/instdir --exclude='./program/libcurl.so*' -czf "$RUNNER_TEMP/code-engine.tar.gz" .
+          (cd "$RUNNER_TEMP" && sha256sum code-engine.tar.gz code-server.tar > CODE-SHA256SUMS)
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: code-server-${{ matrix.arch }}-${{ github.sha }}
-          path: ${{ runner.temp }}/code-server.tar
+          path: |
+            ${{ runner.temp }}/code-server.tar
+            ${{ runner.temp }}/code-engine.tar.gz
+            ${{ runner.temp }}/CODE-SHA256SUMS
+          compression-level: 0
           if-no-files-found: error
           retention-days: 7
