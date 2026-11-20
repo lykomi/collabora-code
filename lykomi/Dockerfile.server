@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1
+ARG REPAIRED_RUNTIME
+FROM --platform=$BUILDPLATFORM debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc AS server
+RUN apt-get update && apt-get install -y --no-install-recommends libcap2-bin && rm -rf /var/lib/apt/lists/*
+COPY server/ /build/server/
+RUN --network=none set -eu; \
+    cd /build/server; \
+    sha256sum --check SHA256SUMS; \
+    install -D -m 755 coolwsd /layer/usr/bin/coolwsd; \
+    install -D -m 755 coolforkit-caps /layer/usr/bin/coolforkit-caps; \
+    install -D -m 755 coolforkit-ns /layer/usr/bin/coolforkit-ns; \
+    setcap cap_fowner,cap_chown,cap_sys_chroot=ep /layer/usr/bin/coolforkit-caps; \
+    getcap /layer/usr/bin/coolforkit-caps; \
+    install -D -m 644 source-commit /layer/usr/share/doc/lykomi-code-repair/server-source-commit; \
+    install -D -m 644 SHA256SUMS /layer/usr/share/doc/lykomi-code-repair/server-SHA256SUMS
+
+FROM ${REPAIRED_RUNTIME}
+COPY --from=server /layer/ /

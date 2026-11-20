@@ -1,0 +1,87 @@
+name: LYKOMI CODE native runtime validation
+
+on:
+  push:
+    branches: ['codex/code-runtime-validation']
+    paths:
+      - '.github/workflows/lykomi-code-runtime.yml'
+      - 'lykomi/Dockerfile.server'
+      - 'lykomi/server-conversion.sh'
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  SOURCE_RUN: '44731098912'
+  SOURCE_COMMIT: d65e4abd2c69f68bd46540b2d4546d8b36048a74
+
+jobs:
+  native-runtime:
+    if: github.repository == 'lykomi/collabora-code'
+    name: CODE native sandbox and document conversion (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-24.04 }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build the pinned runtime and patched shared libraries
+        env:
+          PLATFORM: linux/${{ matrix.arch }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends poppler-utils
+          docker buildx build --platform "$PLATFORM" --target candidate \
+            --load --tag lykomi-code:validation-base lykomi
+      - name: Download and verify the arch-specific server build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          gh run watch "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --exit-status --interval 30
+          head=$(gh run view "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --json headSha --jq .headSha)
+          test "$head" = "$SOURCE_COMMIT"
+          workspace="$RUNNER_TEMP/code-runtime"
+          mkdir -p "$workspace/server"
+          gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" \
+            --name "code-server-$ARCH-$SOURCE_COMMIT" --dir "$workspace"
+          tar -xf "$workspace/code-server.tar" -C "$workspace/server"
+          test "$(cat "$workspace/server/source-commit")" = "$SOURCE_COMMIT"
+          (cd "$workspace/server" && sha256sum --check SHA256SUMS)
+      - name: Verify runtime linkage and exercise native sandbox
+        env:
+          PLATFORM: linux/${{ matrix.arch }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          workspace="$RUNNER_TEMP/code-runtime"
+          docker buildx build --platform "$PLATFORM" \
+            --build-arg REPAIRED_RUNTIME=lykomi-code:validation-base \
+            --provenance=false --load --tag lykomi-code:runtime \
+            -f lykomi/Dockerfile.server "$workspace"
+          case "$ARCH" in
+            amd64) loader=/lib64/ld-linux-x86-64.so.2 ;;
+            arm64) loader=/lib/ld-linux-aarch64.so.1 ;;
+          esac
+          mkdir -p "$workspace/evidence"
+          for file in coolwsd coolforkit-caps coolforkit-ns; do
+            docker run --rm --network none --cap-drop=ALL --entrypoint "$loader" \
+              lykomi-code:runtime --list "/usr/bin/$file" > "$workspace/evidence/$file.libraries"
+          done
+          docker image inspect lykomi-code:runtime > "$workspace/evidence/image-inspect.json"
+          cp "$workspace/server/SHA256SUMS" "$workspace/evidence/SHA256SUMS"
+          bash lykomi/smoke.sh lykomi-code:runtime docker/cool-seccomp-profile.json
+          bash lykomi/server-conversion.sh lykomi-code:runtime docker/cool-seccomp-profile.json \
+            "$workspace/evidence/document-smoke"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: code-native-runtime-evidence-${{ matrix.arch }}-${{ env.SOURCE_COMMIT }}
+          path: ${{ runner.temp }}/code-runtime/evidence
+          if-no-files-found: error
+          retention-days: 7
